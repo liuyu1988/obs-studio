@@ -6,6 +6,7 @@
 #include <string>
 
 struct obs_frontend_callbacks {
+	virtual ~obs_frontend_callbacks() {}
 	virtual void *obs_frontend_get_main_window(void)=0;
 	virtual void *obs_frontend_get_main_window_handle(void)=0;
 
@@ -39,6 +40,11 @@ struct obs_frontend_callbacks {
 	virtual void obs_frontend_recording_stop(void)=0;
 	virtual bool obs_frontend_recording_active(void)=0;
 
+	virtual void obs_frontend_replay_buffer_start(void)=0;
+	virtual void obs_frontend_replay_buffer_save(void) = 0;
+	virtual void obs_frontend_replay_buffer_stop(void)=0;
+	virtual bool obs_frontend_replay_buffer_active(void)=0;
+
 	virtual void *obs_frontend_add_tools_menu_qaction(const char *name)=0;
 	virtual void obs_frontend_add_tools_menu_item(const char *name,
 			obs_frontend_cb callback, void *private_data)=0;
@@ -50,6 +56,7 @@ struct obs_frontend_callbacks {
 
 	virtual obs_output_t *obs_frontend_get_streaming_output(void)=0;
 	virtual obs_output_t *obs_frontend_get_recording_output(void)=0;
+	virtual obs_output_t *obs_frontend_get_replay_buffer_output(void)=0;
 
 	virtual config_t *obs_frontend_get_profile_config(void)=0;
 	virtual config_t *obs_frontend_get_global_config(void)=0;
@@ -63,6 +70,17 @@ struct obs_frontend_callbacks {
 	virtual void obs_frontend_push_ui_translation(
 			obs_frontend_translate_ui_cb translate)=0;
 	virtual void obs_frontend_pop_ui_translation(void)=0;
+
+	virtual void obs_frontend_set_streaming_service(
+			obs_service_t *service)=0;
+	virtual obs_service_t *obs_frontend_get_streaming_service(void)=0;
+	virtual void obs_frontend_save_streaming_service()=0;
+
+	virtual bool obs_frontend_preview_program_mode_active(void)=0;
+	virtual void obs_frontend_set_preview_program_mode(bool enable)=0;
+
+	virtual obs_source_t *obs_frontend_get_current_preview_scene(void)=0;
+	virtual void obs_frontend_set_current_preview_scene(obs_source_t *scene)=0;
 
 	virtual void on_load(obs_data_t *settings)=0;
 	virtual void on_save(obs_data_t *settings)=0;

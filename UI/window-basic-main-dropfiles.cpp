@@ -11,8 +11,16 @@
 
 using namespace std;
 
+static const char *textExtensions[] = {
+	"txt", "log", nullptr
+};
+
 static const char *imageExtensions[] = {
 	"bmp", "tga", "png", "jpg", "jpeg", "gif", nullptr
+};
+
+static const char *htmlExtensions[] = {
+	"htm", "html", nullptr
 };
 
 static const char *mediaExtensions[] = {
@@ -22,7 +30,7 @@ static const char *mediaExtensions[] = {
 	"mlp", "mod", "mpa", "mp1", "mp2", "mp3", "mpc", "mpga", "mus",
 	"oga", "ogg", "oma", "opus", "qcp", "ra", "rmi", "s3m", "sid",
 	"spx", "tak", "thd", "tta", "voc", "vqf", "w64", "wav", "wma",
-	"wv", "xa", "xm" "3g2", "3gp", "3gp2", "3gpp", "amv", "asf", "avi",
+	"wv", "xa", "xm", "3g2", "3gp", "3gp2", "3gpp", "amv", "asf", "avi",
 	"bik", "crf", "divx", "drc", "dv", "evo", "f4v", "flv", "gvi",
 	"gxf", "iso", "m1v", "m2v", "m2t", "m2ts", "m4v", "mkv", "mov",
 	"mp2", "mp2v", "mp4", "mp4v", "mpe", "mpeg", "mpeg1", "mpeg2",
@@ -52,23 +60,60 @@ static string GenerateSourceName(const char *base)
 	}
 }
 
-void OBSBasic::AddDropSource(const char *file, bool image)
+void OBSBasic::AddDropSource(const char *data, DropType image)
 {
 	OBSBasic *main = reinterpret_cast<OBSBasic*>(App()->GetMainWindow());
 	obs_data_t *settings = obs_data_create();
 	obs_source_t *source = nullptr;
 	const char *type = nullptr;
+	QString name;
 
-	if (image) {
-		obs_data_set_string(settings, "file", file);
+	switch (image) {
+	case DropType_RawText:
+		obs_data_set_string(settings, "text", data);
+#ifdef _WIN32
+		type = "text_gdiplus";
+#else
+		type = "text_ft2_source";
+#endif
+		break;
+	case DropType_Text:
+#ifdef _WIN32
+		obs_data_set_bool(settings, "read_from_file", true);
+		obs_data_set_string(settings, "file", data);
+		name = QUrl::fromLocalFile(QString(data)).fileName();
+		type = "text_gdiplus";
+#else
+		obs_data_set_bool(settings, "from_file", true);
+		obs_data_set_string(settings, "text_file", data);
+		type = "text_ft2_source";
+#endif
+		break;
+	case DropType_Image:
+		obs_data_set_string(settings, "file", data);
+		name = QUrl::fromLocalFile(QString(data)).fileName();
 		type = "image_source";
-	} else {
-		obs_data_set_string(settings, "local_file", file);
+		break;
+	case DropType_Media:
+		obs_data_set_string(settings, "local_file", data);
+		name = QUrl::fromLocalFile(QString(data)).fileName();
 		type = "ffmpeg_source";
+		break;
+	case DropType_Html:
+		obs_data_set_bool(settings, "is_local_file", true);
+		obs_data_set_string(settings, "local_file", data);
+		name = QUrl::fromLocalFile(QString(data)).fileName();
+		type = "browser_source";
+		break;
 	}
 
-	const char *name = obs_source_get_display_name(type);
-	source = obs_source_create(type, GenerateSourceName(name).c_str(),
+	if (!obs_source_get_display_name(type))
+		return;
+
+	if (name.isEmpty())
+		name = obs_source_get_display_name(type);
+	source = obs_source_create(type,
+			GenerateSourceName(QT_TO_UTF8(name)).c_str(),
 			settings, nullptr);
 	if (source) {
 		OBSScene scene = main->GetCurrentScene();
@@ -113,30 +158,32 @@ void OBSBasic::dropEvent(QDropEvent *event)
 			const char *suffix = suffixArray.constData();
 			bool found = false;
 
-			const char **cmp = imageExtensions;
-			while (*cmp) {
-				if (strcmp(*cmp, suffix) == 0) {
-					AddDropSource(QT_TO_UTF8(file), true);
-					found = true;
-					break;
-				}
+			const char **cmp;
 
-				cmp++;
-			}
+#define CHECK_SUFFIX(extensions, type) \
+cmp = extensions; \
+while (*cmp) { \
+	if (strcmp(*cmp, suffix) == 0) { \
+		AddDropSource(QT_TO_UTF8(file), type); \
+		found = true; \
+		break; \
+	} \
+\
+	cmp++; \
+} \
+\
+if (found) \
+	continue;
 
-			if (found)
-				continue;
+			CHECK_SUFFIX(textExtensions, DropType_Text);
+			CHECK_SUFFIX(htmlExtensions, DropType_Html);
+			CHECK_SUFFIX(imageExtensions, DropType_Image);
+			CHECK_SUFFIX(mediaExtensions, DropType_Media);
 
-			cmp = mediaExtensions;
-			while (*cmp) {
-				if (strcmp(*cmp, suffix) == 0) {
-					AddDropSource(QT_TO_UTF8(file), false);
-					break;
-				}
-
-				cmp++;
-			}
+#undef CHECK_SUFFIX
 		}
+	} else if (mimeData->hasText()) {
+		AddDropSource(QT_TO_UTF8(mimeData->text()), DropType_RawText);
 	}
 }
 

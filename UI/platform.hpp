@@ -24,19 +24,8 @@
 
 class QWidget;
 
-struct MonitorInfo {
-	int32_t  x, y;
-	uint32_t cx, cy;
-
-	inline MonitorInfo() {}
-	inline MonitorInfo(int32_t x, int32_t y, uint32_t cx, uint32_t cy)
-		: x(x), y(y), cx(cx), cy(cy)
-	{}
-};
-
 /* Gets the path of obs-studio specific data files (such as locale) */
 bool GetDataFilePath(const char *data, std::string &path);
-void GetMonitors(std::vector<MonitorInfo> &monitors);
 
 /* Updates the working directory for OSX application bundles */
 bool InitApplicationBundle();
@@ -53,6 +42,23 @@ uint32_t GetWindowsVersion();
 void SetAeroEnabled(bool enable);
 void SetProcessPriority(const char *priority);
 void SetWin32DropStyle(QWidget *window);
+bool DisableAudioDucking(bool disable);
+
+struct RunOnceMutexData;
+
+class RunOnceMutex {
+	RunOnceMutexData *data = nullptr;
+public:
+	RunOnceMutex(RunOnceMutexData *data_) : data(data_) {}
+	RunOnceMutex(const RunOnceMutex &rom) = delete;
+	RunOnceMutex(RunOnceMutex &&rom);
+	~RunOnceMutex();
+
+	RunOnceMutex &operator=(const RunOnceMutex &rom) = delete;
+	RunOnceMutex &operator=(RunOnceMutex &&rom);
+};
+
+RunOnceMutex GetRunOnceMutex(bool &already_running);
 #endif
 
 #ifdef __APPLE__

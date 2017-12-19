@@ -20,6 +20,7 @@
 #include <util/util.hpp>
 #include <QMessageBox>
 #include <QVariant>
+#include <QFileDialog>
 #include "window-basic-main.hpp"
 #include "window-namedialog.hpp"
 #include "qt-wrappers.hpp"
@@ -101,13 +102,13 @@ static bool GetProfileName(QWidget *parent, std::string &name,
 			return false;
 		}
 		if (name.empty()) {
-			QMessageBox::information(parent,
+			OBSMessageBox::information(parent,
 					QTStr("NoNameEntered.Title"),
 					QTStr("NoNameEntered.Text"));
 			continue;
 		}
 		if (ProfileExists(name.c_str())) {
-			QMessageBox::information(parent,
+			OBSMessageBox::information(parent,
 					QTStr("NameExists.Title"),
 					QTStr("NameExists.Text"));
 			continue;
@@ -406,7 +407,7 @@ void OBSBasic::on_actionRemoveProfile_triggered()
 	QString text = QTStr("ConfirmRemove.Text");
 	text.replace("$1", QT_UTF8(oldName.c_str()));
 
-	QMessageBox::StandardButton button = QMessageBox::question(this,
+	QMessageBox::StandardButton button = OBSMessageBox::question(this,
 			QTStr("ConfirmRemove.Title"), text);
 	if (button == QMessageBox::No)
 		return;
@@ -445,6 +446,106 @@ void OBSBasic::on_actionRemoveProfile_triggered()
 	if (api) {
 		api->on_event(OBS_FRONTEND_EVENT_PROFILE_LIST_CHANGED);
 		api->on_event(OBS_FRONTEND_EVENT_PROFILE_CHANGED);
+	}
+}
+
+void OBSBasic::on_actionImportProfile_triggered()
+{
+	char path[512];
+
+	QString home = QDir::homePath();
+
+	int ret = GetConfigPath(path, 512, "obs-studio/basic/profiles/");
+	if (ret <= 0) {
+		blog(LOG_WARNING, "Failed to get profile config path");
+		return;
+	}
+
+	QString dir = QFileDialog::getExistingDirectory(
+			this,
+			QTStr("Basic.MainMenu.Profile.Import"),
+			home,
+			QFileDialog::ShowDirsOnly |
+			QFileDialog::DontResolveSymlinks);
+
+	if (!dir.isEmpty() && !dir.isNull()) {
+		QString inputPath = QString::fromUtf8(path);
+		QFileInfo finfo(dir);
+		QString directory = finfo.fileName();
+		QString profileDir = inputPath + directory;
+		QDir folder(profileDir);
+
+		if (!folder.exists()) {
+			folder.mkpath(profileDir);
+			QFile::copy(dir + "/basic.ini",
+					profileDir + "/basic.ini");
+			QFile::copy(dir + "/service.json",
+					profileDir + "/service.json");
+			QFile::copy(dir + "/streamEncoder.json",
+					profileDir + "/streamEncoder.json");
+			QFile::copy(dir + "/recordEncoder.json",
+					profileDir + "/recordEncoder.json");
+			RefreshProfiles();
+		} else {
+			OBSMessageBox::information(this,
+					QTStr("Basic.MainMenu.Profile.Import"),
+					QTStr("Basic.MainMenu.Profile.Exists"));
+		}
+	}
+}
+
+void OBSBasic::on_actionExportProfile_triggered()
+{
+	char path[512];
+
+	QString home = QDir::homePath();
+
+	QString currentProfile =
+		QString::fromUtf8(config_get_string(App()->GlobalConfig(),
+		"Basic", "ProfileDir"));
+
+	int ret = GetConfigPath(path, 512, "obs-studio/basic/profiles/");
+	if (ret <= 0) {
+		blog(LOG_WARNING, "Failed to get profile config path");
+		return;
+	}
+
+	QString dir = QFileDialog::getExistingDirectory(
+			this,
+			QTStr("Basic.MainMenu.Profile.Export"),
+			home,
+			QFileDialog::ShowDirsOnly |
+			QFileDialog::DontResolveSymlinks);
+
+	if (!dir.isEmpty() && !dir.isNull()) {
+		QString outputDir = dir + "/" + currentProfile;
+		QString inputPath = QString::fromUtf8(path);
+		QDir folder(outputDir);
+
+		if (!folder.exists()) {
+			folder.mkpath(outputDir);
+		} else {
+			if (QFile::exists(outputDir + "/basic.ini"))
+				QFile::remove(outputDir + "/basic.ini");
+
+			if (QFile::exists(outputDir + "/service.json"))
+				QFile::remove(outputDir + "/service.json");
+
+			if (QFile::exists(outputDir + "/streamEncoder.json"))
+				QFile::remove(outputDir + "/streamEncoder.json");
+
+			if (QFile::exists(outputDir + "/recordEncoder.json"))
+				QFile::remove(outputDir + "/recordEncoder.json");
+		}
+
+		QFile::copy(inputPath + currentProfile + "/basic.ini",
+				outputDir + "/basic.ini");
+		QFile::copy(inputPath + currentProfile + "/service.json",
+				outputDir + "/service.json");
+		QFile::copy(inputPath + currentProfile + "/streamEncoder.json",
+				outputDir + "/streamEncoder.json");
+		QFile::copy(inputPath + currentProfile + "/recordEncoder.json",
+				outputDir + "/recordEncoder.json");
 	}
 }
 

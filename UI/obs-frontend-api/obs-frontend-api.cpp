@@ -205,6 +205,28 @@ bool obs_frontend_recording_active(void)
 		: false;
 }
 
+void obs_frontend_replay_buffer_start(void)
+{
+	if (callbacks_valid()) c->obs_frontend_replay_buffer_start();
+}
+
+void obs_frontend_replay_buffer_save(void)
+{
+	if (callbacks_valid()) c->obs_frontend_replay_buffer_save();
+}
+
+void obs_frontend_replay_buffer_stop(void)
+{
+	if (callbacks_valid()) c->obs_frontend_replay_buffer_stop();
+}
+
+bool obs_frontend_replay_buffer_active(void)
+{
+	return !!callbacks_valid()
+		? c->obs_frontend_replay_buffer_active()
+		: false;
+}
+
 void *obs_frontend_add_tools_menu_qaction(const char *name)
 {
 	return !!callbacks_valid()
@@ -245,6 +267,13 @@ obs_output_t *obs_frontend_get_recording_output(void)
 {
 	return !!callbacks_valid()
 		? c->obs_frontend_get_recording_output()
+		: nullptr;
+}
+
+obs_output_t *obs_frontend_get_replay_buffer_output(void)
+{
+	return !!callbacks_valid()
+		? c->obs_frontend_get_replay_buffer_output()
 		: nullptr;
 }
 
@@ -292,4 +321,49 @@ void obs_frontend_pop_ui_translation(void)
 {
 	if (callbacks_valid())
 		c->obs_frontend_pop_ui_translation();
+}
+
+void obs_frontend_set_streaming_service(obs_service_t *service)
+{
+	if (callbacks_valid())
+		c->obs_frontend_set_streaming_service(service);
+}
+
+obs_service_t* obs_frontend_get_streaming_service(void)
+{
+	return !!callbacks_valid()
+		? c->obs_frontend_get_streaming_service()
+		: nullptr;
+}
+
+void obs_frontend_save_streaming_service(void)
+{
+	if (callbacks_valid())
+		c->obs_frontend_save_streaming_service();
+}
+
+bool obs_frontend_preview_program_mode_active(void)
+{
+	return !!callbacks_valid()
+		? c->obs_frontend_preview_program_mode_active()
+		: false;
+}
+
+void obs_frontend_set_preview_program_mode(bool enable)
+{
+	if (callbacks_valid())
+		c->obs_frontend_set_preview_program_mode(enable);
+}
+
+obs_source_t *obs_frontend_get_current_preview_scene(void)
+{
+	return !!callbacks_valid()
+		? c->obs_frontend_get_current_preview_scene()
+		: nullptr;
+}
+
+void obs_frontend_set_current_preview_scene(obs_source_t *scene)
+{
+	if (callbacks_valid())
+		c->obs_frontend_set_current_preview_scene(scene);
 }

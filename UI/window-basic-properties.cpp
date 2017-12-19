@@ -49,9 +49,15 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 	int cy = (int)config_get_int(App()->GlobalConfig(), "PropertiesWindow",
 			"cy");
 
-	buttonBox->setStandardButtons(QDialogButtonBox::Ok |
-			QDialogButtonBox::Cancel);
 	buttonBox->setObjectName(QStringLiteral("buttonBox"));
+	buttonBox->setStandardButtons(QDialogButtonBox::Ok |
+	                              QDialogButtonBox::Cancel |
+	                              QDialogButtonBox::RestoreDefaults);
+
+	buttonBox->button(QDialogButtonBox::Ok)->setText(QTStr("OK"));
+	buttonBox->button(QDialogButtonBox::Cancel)->setText(QTStr("Cancel"));
+	buttonBox->button(QDialogButtonBox::RestoreDefaults)->
+		setText(QTStr("Defaults"));
 
 	if (cx > 400 && cy > 400)
 		resize(cx, cy);
@@ -70,21 +76,27 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 	view = new OBSPropertiesView(settings, source,
 			(PropertiesReloadCallback)obs_source_properties,
 			(PropertiesUpdateCallback)obs_source_update);
+	view->setMinimumHeight(150);
 
-	preview->setMinimumSize(20, 20);
+	preview->setMinimumSize(20, 150);
 	preview->setSizePolicy(QSizePolicy(QSizePolicy::Expanding,
 				QSizePolicy::Expanding));
 
-	setLayout(new QVBoxLayout(this));
-	layout()->addWidget(preview);
-	layout()->addWidget(view);
-	layout()->addWidget(buttonBox);
-	layout()->setAlignment(buttonBox, Qt::AlignRight | Qt::AlignBottom);
-	layout()->setAlignment(view, Qt::AlignBottom);
-	view->setMaximumHeight(250);
-	view->setMinimumHeight(150);
-	view->show();
+	// Create a QSplitter to keep a unified workflow here.
+	windowSplitter = new QSplitter(Qt::Orientation::Vertical, this);
+	windowSplitter->addWidget(preview);
+	windowSplitter->addWidget(view);
+	windowSplitter->setChildrenCollapsible(false);
+	//windowSplitter->setSizes(QList<int>({ 16777216, 150 }));
+	windowSplitter->setStretchFactor(0, 3);
+	windowSplitter->setStretchFactor(1, 1);
 
+	setLayout(new QVBoxLayout(this));
+	layout()->addWidget(windowSplitter);
+	layout()->addWidget(buttonBox);
+	layout()->setAlignment(buttonBox, Qt::AlignBottom);
+
+	view->show();
 	installEventFilter(CreateShortcutFilter());
 
 	const char *name = obs_source_get_name(source);
@@ -152,9 +164,8 @@ void OBSBasicProperties::on_buttonBox_clicked(QAbstractButton *button)
 
 		if (view->DeferUpdate())
 			view->UpdateSettings();
-	}
 
-	if (val == QDialogButtonBox::RejectRole) {
+	} else if (val == QDialogButtonBox::RejectRole) {
 		obs_data_t *settings = obs_source_get_settings(source);
 		obs_data_clear(settings);
 		obs_data_release(settings);
@@ -165,6 +176,16 @@ void OBSBasicProperties::on_buttonBox_clicked(QAbstractButton *button)
 			obs_source_update(source, oldSettings);
 
 		close();
+
+	} else if (val == QDialogButtonBox::ResetRole) {
+		obs_data_t *settings = obs_source_get_settings(source);
+		obs_data_clear(settings);
+		obs_data_release(settings);
+
+		if (!view->DeferUpdate())
+			obs_source_update(source, nullptr);
+
+		view->RefreshProperties();
 	}
 }
 
@@ -259,7 +280,7 @@ bool OBSBasicProperties::ConfirmQuit()
 {
 	QMessageBox::StandardButton button;
 
-	button = QMessageBox::question(this,
+	button = OBSMessageBox::question(this,
 			QTStr("Basic.PropertiesWindow.ConfirmTitle"),
 			QTStr("Basic.PropertiesWindow.Confirm"),
 			QMessageBox::Save | QMessageBox::Discard |

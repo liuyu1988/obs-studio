@@ -50,6 +50,26 @@ static struct obs_source_info freetype2_source_info = {
 	.get_properties = ft2_source_properties,
 };
 
+static bool plugin_initialized = false;
+
+static void init_plugin(void)
+{
+	if (plugin_initialized)
+		return;
+
+	FT_Init_FreeType(&ft2_lib);
+
+	if (ft2_lib == NULL) {
+		blog(LOG_WARNING, "FT2-text: Failed to initialize FT2.");
+		return;
+	}
+
+	if (!load_cached_os_font_list())
+		load_os_font_list();
+
+	plugin_initialized = true;
+}
+
 bool obs_module_load()
 {
 	char *config_dir = obs_module_config_path(NULL);
@@ -58,16 +78,6 @@ bool obs_module_load()
 		bfree(config_dir);
 	}
 
-	FT_Init_FreeType(&ft2_lib);
-
-	if (ft2_lib == NULL) {
-		blog(LOG_WARNING, "FT2-text: Failed to initialize FT2.");
-		return false;
-	}
-
-	if (!load_cached_os_font_list())
-		load_os_font_list();
-
 	obs_register_source(&freetype2_source_info);
 
 	return true;
@@ -75,8 +85,10 @@ bool obs_module_load()
 
 void obs_module_unload(void)
 {
-	free_os_font_list();
-	FT_Done_FreeType(ft2_lib);
+	if (plugin_initialized) {
+		free_os_font_list();
+		FT_Done_FreeType(ft2_lib);
+	}
 }
 
 static const char *ft2_source_get_name(void *unused)
@@ -226,7 +238,7 @@ static void ft2_video_tick(void *data, float seconds)
 		time_t t = get_modified_timestamp(srcdata->text_file);
 		srcdata->last_checked = os_gettime_ns();
 
-		if (srcdata->m_timestamp != t) {
+		if (srcdata->update_file) {
 			if (srcdata->log_mode)
 				read_from_end(srcdata, srcdata->text_file);
 			else
@@ -234,6 +246,12 @@ static void ft2_video_tick(void *data, float seconds)
 					srcdata->text_file);
 			cache_glyphs(srcdata, srcdata->text);
 			set_up_vertex_buffer(srcdata);
+			srcdata->update_file = false;
+		}
+
+		if (srcdata->m_timestamp != t) {
+			srcdata->m_timestamp = t;
+			srcdata->update_file = true;
 		}
 	}
 
@@ -441,6 +459,8 @@ static void *ft2_source_create(obs_data_t *settings, obs_source_t *source)
 	struct ft2_source *srcdata = bzalloc(sizeof(struct ft2_source));
 	obs_data_t *font_obj = obs_data_create();
 	srcdata->src = source;
+
+	init_plugin();
 
 	srcdata->font_size = 32;
 
